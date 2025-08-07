@@ -1,0 +1,66 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.joblib
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Pytest & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# ========================
+# Project-specific
+# ========================
+# Artifacts & data
+artifacts/
+extracted_model/
+data/processed/
+data/test_model/
+
+# ========================
+# Terraform
+# ========================
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# .terraform dir & lock file
+.terraform/
+.terraform.lock.hcl
+
+# Local variable overrides (never commit secrets)
+terraform.tfvars
+terraform.tfvars.json
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
