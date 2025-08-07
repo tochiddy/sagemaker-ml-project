@@ -1,0 +1,5 @@
+region               = "us-east-1"
+sagemaker_bucket_name = "churn-pipeline-sagemaker"
+dag_bucket_name        = "churn-pipeline-dags"
+mwaa_env_name          = "churn-mwaa"
+execution_role_name    = "SageMakerExecutionRole"
