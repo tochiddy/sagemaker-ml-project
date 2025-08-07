@@ -1,13 +1,36 @@
-# tests/test_inference.py
+import os
+import pytest
+from sagemaker.inference import model_fn, predict_fn
 
-import pandas as pd
-from sagemaker.inference import predict_fn, model
+def test_predict_fn_with_real_model():
+    model_path = "artifacts/model"
+    assert os.path.exists(os.path.join(model_path, "model.joblib")), "Trained model not found."
 
-def test_inference_prediction():
-    # Use small sample of real data
-    df = pd.read_csv("data/processed/test.csv").drop("Churn", axis=1).head(3)
-    preds = predict_fn(df, model)
-    
-    assert isinstance(preds, list), "Predictions should be a list"
-    assert len(preds) == len(df), "Mismatch in number of predictions"
-    assert all(pred in [0, 1] for pred in preds), "Invalid prediction values"
+    model = model_fn(model_path)
+
+    input_data = [{
+        "gender": 1,
+        "SeniorCitizen": 0,
+        "Partner": 1,
+        "Dependents": 0,
+        "tenure": 5,
+        "PhoneService": 1,
+        "MultipleLines": 0,
+        "InternetService": 2,
+        "OnlineSecurity": 0,
+        "OnlineBackup": 1,
+        "DeviceProtection": 0,
+        "TechSupport": 0,
+        "StreamingTV": 1,
+        "StreamingMovies": 0,
+        "Contract": 0,
+        "PaperlessBilling": 1,
+        "PaymentMethod": 2,
+        "MonthlyCharges": 70.35,
+        "TotalCharges": 350.5
+    }]
+
+    predictions = predict_fn(input_data, model)
+    assert isinstance(predictions, list)
+    assert len(predictions) == 1
+    assert predictions[0] in [0, 1]  # Churn prediction should be binary

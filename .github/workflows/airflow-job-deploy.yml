@@ -1,0 +1,99 @@
+name: ci-cd-mwaa
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: mwaa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}            # e.g., us-east-1
+  MWAA_ENV_NAME: ${{ vars.MWAA_ENV_NAME }}      # your MWAA env name
+  S3_DAG_BUCKET: ${{ vars.S3_DAG_BUCKET }}      # MWAA DAG bucket
+  S3_DAG_PREFIX: ${{ vars.S3_DAG_PREFIX }}      # usually "dags/"
+  SAGEMAKER_BUCKET: ${{ vars.SAGEMAKER_BUCKET }}# same bucket used in your DAG
+  EVAL_CODE_PREFIX: code/                       # where evaluate.py will live
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements/**', '**/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install deps (local)
+        run: |
+          python -m pip install --upgrade pip
+          # prefer local.txt for dev, fall back to base requirements.txt if you have one
+          if [ -f requirements/local.txt ]; then pip install -r requirements/local.txt; fi
+          pip install pytest
+      - name: Run tests
+        run: PYTHONPATH=. pytest -q
+
+  deploy:
+    name: Deploy DAGs + eval code to MWAA/S3
+    needs: test
+    runs-on: ubuntu-latest
+    environment: prod   # add an "Environment" named prod with required reviewers for approvals
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}   # IAM role with S3 + MWAA perms
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate required vars
+        run: |
+          : "${S3_DAG_BUCKET:?missing}"
+          : "${S3_DAG_PREFIX:?missing}"
+          : "${SAGEMAKER_BUCKET:?missing}"
+
+      - name: Sync DAGs to MWAA S3
+        run: |
+          aws s3 sync airflow/dags "s3://${S3_DAG_BUCKET}/${S3_DAG_PREFIX}" --delete
+
+      - name: Upload MWAA requirements (if you manage via S3)
+        if: ${{ hashFiles('requirements/mwaa.txt') != '' }}
+        run: |
+          aws s3 cp requirements/mwaa.txt "s3://${S3_DAG_BUCKET}/requirements.txt"
+
+      - name: Upload evaluate.py for Processing job
+        run: |
+          aws s3 cp sagemaker/evaluate.py "s3://${SAGEMAKER_BUCKET}/${EVAL_CODE_PREFIX}evaluate.py"
+
+      # Optional: quick MWAA CLI smoke check (parse DAGs)
+      # - name: Validate DAGs parse via MWAA CLI
+      #   shell: bash
+      #   run: |
+      #     TOKEN_JSON=$(aws mwaa create-cli-token --name "$MWAA_ENV_NAME")
+      #     CLI_TOKEN=$(echo "$TOKEN_JSON" | jq -r .CliToken)
+      #     WEB_SERVER_HOSTNAME=$(echo "$TOKEN_JSON" | jq -r .WebServerHostname)
+      #     curl -s --request POST "https://${WEB_SERVER_HOSTNAME}/aws_mwaa/cli" \
+      #       --header "Authorization: Bearer ${CLI_TOKEN}" \
+      #       --header "Content-Type: text/plain" \
+      #       --data-raw "dags list"
