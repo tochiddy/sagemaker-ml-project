@@ -2,11 +2,6 @@ name: bootstrap-remote-state-and-infra
 
 on:
   push:
-    branches: ["main"]
-    paths: ["bootstrap/**", "infra/**"]
-  pull_request:
-    branches: ["main"]
-    paths: ["bootstrap/**", "infra/**"]
   workflow_dispatch:
 
 permissions:
